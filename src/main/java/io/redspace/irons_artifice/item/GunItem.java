@@ -22,6 +22,7 @@ import io.redspace.irons_artifice.item.animation_adjuster.AnimationAdjuster;
 import io.redspace.irons_artifice.menu.GunContainer;
 import io.redspace.irons_artifice.registry.DataComponentRegistry;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -33,16 +34,15 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemInstance;
+import net.minecraft.world.item.Item.TooltipContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUtils;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.component.ItemContainerContents;
-import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.level.Level;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -67,7 +67,6 @@ public class GunItem extends BaseGeoItem {
         super(properties
                 .stacksTo(1)
                 .component(DataComponents.CONTAINER, ItemContainerContents.EMPTY)
-                .component(DataComponents.TOOLTIP_DISPLAY, TooltipDisplay.DEFAULT.withHidden(DataComponents.CONTAINER, true))
                 .component(DataComponentRegistry.MAGAZINE, new MagazineContents(gunProfile.magazineCapacity()))
         );
         this.gunProfile = gunProfile;
@@ -75,7 +74,7 @@ public class GunItem extends BaseGeoItem {
 
     public static final int SCOPE_USE_DURATION = 1200;
 
-    public static boolean hasGunSpyglass(ItemInstance stack) {
+    public static boolean hasGunSpyglass(ItemStack stack) {
         return stack.has(DataComponentRegistry.GUN_SPYGLASS);
     }
 
@@ -88,7 +87,7 @@ public class GunItem extends BaseGeoItem {
     }
 
     @Override
-    public @NonNull InteractionResult use(@NonNull Level level, @NonNull Player player, @NonNull InteractionHand hand) {
+    public @Nonnull InteractionResult use(@Nonnull Level level, @Nonnull Player player, @Nonnull InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
         if (GunItem.isReloading(stack)) {
             return InteractionResult.FAIL;
@@ -101,12 +100,12 @@ public class GunItem extends BaseGeoItem {
     }
 
     @Override
-    public int getUseDuration(@NonNull ItemStack stack, @NonNull LivingEntity user) {
+    public int getUseDuration(@Nonnull ItemStack stack, @Nonnull LivingEntity user) {
         return hasGunSpyglass(stack) ? SCOPE_USE_DURATION : super.getUseDuration(stack, user);
     }
 
     @Override
-    public @NonNull ItemStack finishUsingItem(@NonNull ItemStack stack, @NonNull Level level, @NonNull LivingEntity entity) {
+    public @Nonnull ItemStack finishUsingItem(@Nonnull ItemStack stack, @Nonnull Level level, @Nonnull LivingEntity entity) {
         if (hasGunSpyglass(stack)) {
             entity.playSound(SoundEvents.SPYGLASS_STOP_USING, 1.0F, 1.0F);
             return stack;
@@ -115,7 +114,7 @@ public class GunItem extends BaseGeoItem {
     }
 
     @Override
-    public boolean releaseUsing(@NonNull ItemStack stack, @NonNull Level level, @NonNull LivingEntity entity, int remainingTime) {
+    public boolean releaseUsing(@Nonnull ItemStack stack, @Nonnull Level level, @Nonnull LivingEntity entity, int remainingTime) {
         if (hasGunSpyglass(stack)) {
             entity.playSound(SoundEvents.SPYGLASS_STOP_USING, 1.0F, 1.0F);
             return true;
@@ -172,11 +171,12 @@ public class GunItem extends BaseGeoItem {
 
     @Override
     @SuppressWarnings("deprecation")
-    public void appendHoverText(@NonNull ItemStack itemStack, @NonNull TooltipContext context, @NonNull TooltipDisplay display, @NonNull Consumer<Component> builder, @NonNull TooltipFlag tooltipFlag) {
-        super.appendHoverText(itemStack, context, display, builder, tooltipFlag);
-        Consumer<Component> statBuilder = (component) -> builder.accept(Component.literal(" ").append(component).withStyle(ChatFormatting.DARK_GREEN));
+    public void appendHoverText(@Nonnull ItemStack itemStack, TooltipContext context, @Nonnull List<Component> tooltipComponents, @Nonnull TooltipFlag tooltipFlag) {
+        super.appendHoverText(itemStack, context, tooltipComponents, tooltipFlag);
+        Consumer<Component> statBuilder = (component) -> tooltipComponents.add(Component.literal(" ").append(component).withStyle(ChatFormatting.DARK_GREEN));
         Function<String, Component> highlightText = s -> Component.literal(s).withStyle(ChatFormatting.GREEN);
-        ShotProfile shotProfile = GunplayManager.compose(context.player(), this.gunProfile, itemStack);
+        Player clientPlayer = Minecraft.getInstance().player;
+        ShotProfile shotProfile = GunplayManager.compose(clientPlayer, this.gunProfile, itemStack);
         String damage = ItemAttributeModifiers.ATTRIBUTE_MODIFIER_FORMAT.format(shotProfile.value(ShotComponents.DAMAGE));
         int bulletCount = (int) shotProfile.value(ShotComponents.PROJECTILE_COUNT);
         int bulletSpeedPercent = (int) (100 * shotProfile.value(ShotComponents.BULLET_SPEED) / Bullet.BASE_SPEED);
@@ -197,7 +197,7 @@ public class GunItem extends BaseGeoItem {
         }
         statBuilder.accept(Component.translatable("irons_artifice.tooltip.reload_time", highlightText.apply(reloadTime + "s")));
         statBuilder.accept(Component.translatable("irons_artifice.tooltip.ammo_capacity", highlightText.apply("" + gunProfile.magazineCapacity())));
-        builder.accept(Component.translatable("irons_artifice.tooltip.modifier_count",
+        tooltipComponents.add(Component.translatable("irons_artifice.tooltip.modifier_count",
                         gunProfile.modifierSlots()
                 ).withStyle(ChatFormatting.GOLD)
                 .append(" ").append(Component.translatable("irons_artifice.tooltip.keybind_hint",
@@ -207,7 +207,7 @@ public class GunItem extends BaseGeoItem {
         GunContainer container = new GunContainer(itemStack);
         for (var item : container.getItems()) {
             if (!item.isEmpty()) {
-                builder.accept(Component.literal(" * ").withStyle(ChatFormatting.DARK_GRAY).append(item.getHoverName().copy().withStyle(ChatFormatting.GRAY)));
+                tooltipComponents.add(Component.literal(" * ").withStyle(ChatFormatting.DARK_GRAY).append(item.getHoverName().copy().withStyle(ChatFormatting.GRAY)));
             }
         }
     }
@@ -252,7 +252,7 @@ public class GunItem extends BaseGeoItem {
     }
 
     @Override
-    public void registerControllers(AnimatableManager.@NonNull ControllerRegistrar controllers) {
+    public void registerControllers(AnimatableManager.@Nonnull ControllerRegistrar controllers) {
         super.registerControllers(controllers);
         controllers.add(new AnimationController<>(IDLE_ANIMATION_CONTROLLER, this::gunIdleHandler));
         controllers.add(new OffsetableAnimationController<>(GunAnimations.CONTROLLER_ACTIONS, test -> PlayState.STOP)
