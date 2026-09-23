@@ -1,9 +1,6 @@
 package io.redspace.irons_artifice.entity;
 
-import io.redspace.irons_artifice.registry.EntityRegistry;
-import io.redspace.irons_artifice.utils.Utils;
-import net.minecraft.core.particles.BlockParticleOption;
-import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -11,15 +8,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
-import org.jspecify.annotations.Nullable;
+
+import javax.annotation.Nullable;
+import java.util.UUID;
 
 public class ChainEntity extends Entity {
     public static final float SPAWN_RANGE = 8f;
@@ -27,22 +23,6 @@ public class ChainEntity extends Entity {
     public static final int DURATION = 200;
     public static final float STRENGTH = 0.05f;
     public static final int VISUAL_WARMUP_TIME = 5;
-
-    public void setMaxRange(float maxRange) {
-        this.maxRange = maxRange;
-    }
-
-    public void setPrimaryStrength(float primaryStrength) {
-        this.primaryStrength = primaryStrength;
-    }
-
-    public void setSecondaryStrength(float secondaryStrength) {
-        this.secondaryStrength = secondaryStrength;
-    }
-
-    public void setDuration(int duration) {
-        this.duration = duration;
-    }
 
     private float maxRange, primaryStrength, secondaryStrength;
     private int duration;
@@ -53,9 +33,9 @@ public class ChainEntity extends Entity {
             SynchedEntityData.defineId(ChainEntity.class, EntityDataSerializers.INT);
 
     @Nullable
-    private EntityReference<LivingEntity> firstRef;
+    private UUID firstUuid;
     @Nullable
-    private EntityReference<LivingEntity> secondRef;
+    private UUID secondUuid;
 
     public int warmup;
 
@@ -75,113 +55,57 @@ public class ChainEntity extends Entity {
         setPos(midpoint(first, second));
     }
 
+    public void setMaxRange(float maxRange) {
+        this.maxRange = maxRange;
+    }
+
+    public void setPrimaryStrength(float primaryStrength) {
+        this.primaryStrength = primaryStrength;
+    }
+
+    public void setSecondaryStrength(float secondaryStrength) {
+        this.secondaryStrength = secondaryStrength;
+    }
+
+    public void setDuration(int duration) {
+        this.duration = duration;
+    }
+
     public void setFirst(LivingEntity entity) {
-        this.firstRef = EntityReference.of(entity);
+        this.firstUuid = entity.getUUID();
         this.entityData.set(DATA_FIRST_ID, entity.getId());
     }
 
     public void setSecond(LivingEntity entity) {
-        this.secondRef = EntityReference.of(entity);
+        this.secondUuid = entity.getUUID();
         this.entityData.set(DATA_SECOND_ID, entity.getId());
     }
 
     @Nullable
     public LivingEntity getFirst() {
-        return resolveBound(entityData.get(DATA_FIRST_ID), firstRef);
+        return resolveBound(entityData.get(DATA_FIRST_ID), firstUuid);
     }
 
     @Nullable
     public LivingEntity getSecond() {
-        return resolveBound(entityData.get(DATA_SECOND_ID), secondRef);
+        return resolveBound(entityData.get(DATA_SECOND_ID), secondUuid);
     }
 
     @Nullable
-    private LivingEntity resolveBound(int entityId, @Nullable EntityReference<LivingEntity> reference) {
+    private LivingEntity resolveBound(int entityId, @Nullable UUID uuid) {
         if (entityId != 0) {
             Entity entity = level().getEntity(entityId);
             if (entity instanceof LivingEntity living && !living.isRemoved()) {
                 return living;
             }
         }
-        return EntityReference.getLivingEntity(reference, level());
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        if (warmup < VISUAL_WARMUP_TIME) {
-            warmup++;
-        }
-
-        LivingEntity first = getFirst();
-        LivingEntity second = getSecond();
-
-        if (first == null || second == null) {
-            if (!level().isClientSide()) {
-                discard();
-            }
-            return;
-        }
-
-        setPos(midpoint(first, second));
-        if (!level().isClientSide()) {
-            Vec3 firstCenter = first.getBoundingBox().getCenter();
-            Vec3 secondCenter = second.getBoundingBox().getCenter();
-            double distSq = firstCenter.distanceToSqr(secondCenter);
-            if (tickCount > duration || distSq > maxRange * maxRange) {
-                breakWithEffects(firstCenter, secondCenter);
-                return;
-            }
-            if (primaryStrength != 0) {
-                applySpring(first, position(), primaryStrength);
-            }
-            if (secondaryStrength != 0) {
-                applySpring(second, position(), secondaryStrength);
+        if (uuid != null) {
+            Entity entity = level().getEntity(uuid);
+            if (entity instanceof LivingEntity living && !living.isRemoved()) {
+                return living;
             }
         }
-    }
-
-    private void applySpring(LivingEntity entity, Vec3 center, float strength) {
-        Vec3 entityCenter = entity.getBoundingBox().getCenter();
-        Vec3 delta = center.subtract(entityCenter);
-        if (delta.lengthSqr() < 1.0E-8) {
-            return;
-        }
-        entity.setDeltaMovement(entity.getDeltaMovement().add(delta.multiply(Math.abs(delta.x), Math.abs(delta.y), Math.abs(delta.z)).scale(strength)));
-        entity.hurtMarked = true;
-        if (entity.getDeltaMovement().y >= 0) {
-            entity.resetFallDistance();
-        }
-    }
-
-    private void breakWithEffects(Vec3 from, Vec3 to) {
-        playSound(SoundEvents.CHAIN_BREAK, 1f, 1f);
-        BlockParticleOption particle = new BlockParticleOption(ParticleTypes.BLOCK, Blocks.IRON_CHAIN.defaultBlockState());
-        int count = 12;
-        for (int i = 0; i < count; i++) {
-            Vec3 pos = from.lerp(to, i / (float) (count - 1));
-            Utils.spawnParticles(level(), particle, pos.x, pos.y, pos.z, 2, 0.1, 0.1, 0.1, 0.02, false);
-        }
-        discard();
-    }
-
-    private static Vec3 midpoint(LivingEntity a, LivingEntity b) {
-        return a.getBoundingBox().getCenter().add(b.getBoundingBox().getCenter()).scale(0.5);
-    }
-
-    @Override
-    public boolean isPickable() {
-        return false;
-    }
-
-    @Override
-    public boolean canBeCollidedWith(@Nullable Entity other) {
-        return false;
-    }
-
-    @Override
-    public boolean hurtServer(ServerLevel level, DamageSource source, float damage) {
-        return false;
+        return null;
     }
 
     @Override
@@ -191,26 +115,34 @@ public class ChainEntity extends Entity {
     }
 
     @Override
-    protected void readAdditionalSaveData(ValueInput input) {
-        this.firstRef = EntityReference.read(input, "First");
-        this.secondRef = EntityReference.read(input, "Second");
-        this.tickCount = input.getIntOr("Age", 0);
-        if (level() instanceof ServerLevel) {
-            LivingEntity first = EntityReference.getLivingEntity(firstRef, level());
-            if (first != null) {
-                entityData.set(DATA_FIRST_ID, first.getId());
-            }
-            LivingEntity second = EntityReference.getLivingEntity(secondRef, level());
-            if (second != null) {
-                entityData.set(DATA_SECOND_ID, second.getId());
-            }
-        }
+    protected void readAdditionalSaveData(CompoundTag tag) {
+        this.firstUuid = tag.hasUUID("firstUuid") ? tag.getUUID("firstUuid") : null;
+        this.secondUuid = tag.hasUUID("secondUuid") ? tag.getUUID("secondUuid") : null;
+        this.entityData.set(DATA_FIRST_ID, tag.getInt("firstId"));
+        this.entityData.set(DATA_SECOND_ID, tag.getInt("secondId"));
     }
 
     @Override
-    protected void addAdditionalSaveData(ValueOutput output) {
-        EntityReference.store(firstRef, output, "First");
-        EntityReference.store(secondRef, output, "Second");
-        output.putInt("Age", tickCount);
+    protected void addAdditionalSaveData(CompoundTag tag) {
+        if (firstUuid != null) {
+            tag.putUUID("firstUuid", firstUuid);
+        }
+        if (secondUuid != null) {
+            tag.putUUID("secondUuid", secondUuid);
+        }
+        tag.putInt("firstId", entityData.get(DATA_FIRST_ID));
+        tag.putInt("secondId", entityData.get(DATA_SECOND_ID));
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (warmup < VISUAL_WARMUP_TIME) {
+            warmup++;
+        }
+    }
+
+    private static Vec3 midpoint(LivingEntity first, LivingEntity second) {
+        return first.position().add(second.position()).scale(0.5D);
     }
 }
