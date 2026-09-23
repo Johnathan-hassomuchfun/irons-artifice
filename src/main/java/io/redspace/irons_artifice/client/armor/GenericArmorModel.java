@@ -4,27 +4,27 @@ import com.geckolib.animatable.GeoItem;
 import com.geckolib.model.DefaultedItemGeoModel;
 import com.geckolib.renderer.base.GeoRenderState;
 import io.redspace.irons_artifice.IronsArtifice;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
-import org.jspecify.annotations.NonNull;
+
+import javax.annotation.Nonnull;
 
 public class GenericArmorModel<T extends Item & GeoItem> extends DefaultedItemGeoModel<T> {
 
-    private final Identifier model;
+    private final ResourceLocation model;
+    private final ResourceLocation texture;
 
-    private final Identifier texture;
-
-    private static final Identifier ANIMATION = Identifier.fromNamespaceAndPath(IronsArtifice.MODID, "empty");
+    private static final ResourceLocation ANIMATION = ResourceLocation.fromNamespaceAndPath(IronsArtifice.MODID, "empty");
 
     public GenericArmorModel(String modid, String name) {
         this(
-                Identifier.fromNamespaceAndPath(modid, String.format("armor/%s", name)),
-                Identifier.fromNamespaceAndPath(modid, String.format("textures/models/armor/%s.png", name))
+                ResourceLocation.fromNamespaceAndPath(modid, String.format("armor/%s", name)),
+                ResourceLocation.fromNamespaceAndPath(modid, String.format("textures/models/armor/%s.png", name))
         );
     }
 
-    public GenericArmorModel(Identifier model, Identifier texture) {
-        super(Identifier.fromNamespaceAndPath(model.getNamespace(), ""));
+    public GenericArmorModel(ResourceLocation model, ResourceLocation texture) {
+        super(ResourceLocation.fromNamespaceAndPath(model.getNamespace(), ""));
         this.model = model;
         this.texture = texture;
     }
@@ -34,17 +34,17 @@ public class GenericArmorModel<T extends Item & GeoItem> extends DefaultedItemGe
     }
 
     @Override
-    public @NonNull Identifier getModelResource(@NonNull GeoRenderState renderState) {
+    public @Nonnull ResourceLocation getModelResource(@Nonnull GeoRenderState renderState) {
         return model;
     }
 
     @Override
-    public @NonNull Identifier getTextureResource(@NonNull GeoRenderState renderState) {
+    public @Nonnull ResourceLocation getTextureResource(@Nonnull GeoRenderState renderState) {
         return texture;
     }
 
     @Override
-    public @NonNull Identifier getAnimationResource(T animatable) {
+    public @Nonnull ResourceLocation getAnimationResource(T animatable) {
         return ANIMATION;
     }
 }
