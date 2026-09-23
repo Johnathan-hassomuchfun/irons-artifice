@@ -7,8 +7,8 @@ import com.geckolib.animatable.manager.AnimatableManager;
 import com.geckolib.util.GeckoLibUtil;
 import com.llamalad7.mixinextras.lib.apache.commons.mutable.MutableObject;
 import net.minecraft.world.item.Item;
-import org.jspecify.annotations.NonNull;
 
+import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 
 public class BaseGeoItem extends Item implements GeoItem {
@@ -26,11 +26,11 @@ public class BaseGeoItem extends Item implements GeoItem {
     }
 
     @Override
-    public void registerControllers(final AnimatableManager.@NonNull ControllerRegistrar controllers) {
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
     }
 
     @Override
-    public @NonNull AnimatableInstanceCache getAnimatableInstanceCache() {
+    public @Nonnull AnimatableInstanceCache getAnimatableInstanceCache() {
         return this.geoCache;
     }
 }
