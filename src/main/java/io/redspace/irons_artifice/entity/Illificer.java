@@ -1,10 +1,5 @@
 package io.redspace.irons_artifice.entity;
 
-import io.redspace.irons_artifice.datagen.LoadoutLootProvider;
-import io.redspace.irons_artifice.entity.ai.RangedGunAttackGoal;
-import io.redspace.irons_artifice.item.GunItem;
-import io.redspace.irons_artifice.menu.GunContainer;
-import io.redspace.irons_artifice.modifier.ModifierItem;
 import io.redspace.irons_artifice.registry.ItemRegistry;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -12,11 +7,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.SpawnGroupData;
+import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
@@ -24,11 +15,11 @@ import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
-import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.AbstractIllager;
 import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.entity.monster.illager.AbstractIllager;
-import net.minecraft.world.entity.npc.villager.AbstractVillager;
+import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.raid.Raider;
 import net.minecraft.world.item.ItemStack;
@@ -40,8 +31,8 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
-import org.jspecify.annotations.Nullable;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 @EventBusSubscriber
@@ -87,7 +78,7 @@ public class Illificer extends AbstractIllager implements IGunslingerMob {
 
     @Override
     public @Nullable SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty,
-                                                  EntitySpawnReason spawnReason, @Nullable SpawnGroupData spawnGroupData) {
+                                                  MobSpawnType spawnReason, @Nullable SpawnGroupData spawnGroupData) {
         this.populateDefaultEquipmentSlots(level.getRandom(), difficulty);
         return super.finalizeSpawn(level, difficulty, spawnReason, spawnGroupData);
     }
@@ -140,33 +131,9 @@ public class Illificer extends AbstractIllager implements IGunslingerMob {
 
     public static List<ItemStack> rollLoadout(ServerLevel level) {
         LootTable table = level.getServer().reloadableRegistries().getLootTable(LoadoutLootProvider.ILLIFICER_LOADOUT);
-        LootParams params = new LootParams.Builder(level).create(LootContextParamSets.EMPTY);
+        LootParams params = new LootParams.Builder(level)
+                .withLuck(0.0F)
+                .create(LootContextParamSets.EMPTY);
         return table.getRandomItems(params);
-    }
-
-    @SubscribeEvent
-    public static void dropLoadoutModifier(LivingDropsEvent event) {
-        if (!(event.getEntity() instanceof Illificer illificer)) {
-            return;
-        }
-        ItemStack gun = illificer.getMainHandItem();
-        if (!(gun.getItem() instanceof GunItem)) {
-            return;
-        }
-        GunContainer gunContainer = new GunContainer(gun);
-        if (gunContainer.isEmpty()) {
-            return;
-        }
-        ItemStack drop = gunContainer.getItems().get(illificer.getRandom().nextInt(gunContainer.getItems().size())).copyWithCount(1);
-        event.getDrops().add(new ItemEntity(illificer.level(), illificer.getX(), illificer.getY(), illificer.getZ(), drop));
-    }
-
-    public static AttributeSupplier.Builder createAttributes() {
-        return Monster.createMonsterAttributes()
-                .add(Attributes.STEP_HEIGHT, 1)
-                .add(Attributes.MOVEMENT_SPEED, 0.35)
-                .add(Attributes.FOLLOW_RANGE, 48.0)
-                .add(Attributes.MAX_HEALTH, 36.0)
-                .add(Attributes.ATTACK_DAMAGE, 2.0);
     }
 }
