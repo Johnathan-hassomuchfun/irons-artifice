@@ -10,6 +10,7 @@ import io.redspace.irons_artifice.damage.DamageSources;
 import io.redspace.irons_artifice.registry.ItemRegistry;
 import io.redspace.irons_artifice.registry.SoundRegistry;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -29,6 +30,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.AddAttributeTooltipsEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -48,14 +50,13 @@ public class CowboyHatItem extends BaseGeoItem {
                     Suppliers.memoize(() -> new GeoArmorRenderer<>(new GenericArmorModel<>("cowboy_hat")));
 
             @Override
-            public @org.jspecify.annotations.Nullable GeoArmorRenderer<?, ?> getGeoArmorRenderer(ItemStack itemStack, EquipmentSlot equipmentSlot) {
+            public @Nullable GeoArmorRenderer<?, ?> getGeoArmorRenderer(ItemStack itemStack, EquipmentSlot equipmentSlot) {
                 return renderer.get();
             }
         });
     }
 
     public static final int COOLDOWN_TICKS = 100;
-
 
     @SubscribeEvent
     public static void attributeTooltip(AddAttributeTooltipsEvent event) {
@@ -65,7 +66,6 @@ public class CowboyHatItem extends BaseGeoItem {
                             .withStyle(ChatFormatting.GOLD));
         }
     }
-
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void onBulletKill(LivingDeathEvent event) {
@@ -89,18 +89,17 @@ public class CowboyHatItem extends BaseGeoItem {
 
     private static void performInstantReload(LivingEntity livingAttacker, GunItem gunItem, MagazineContents contents, ItemStack gunstack, ItemStack stack) {
         int missing = contents.missing(gunItem.magazineCapacity());
-        MagazineContents.set(gunstack, contents.with(gunItem.magazineCapacity()));
-        livingAttacker.level().playSound(null, livingAttacker.getX(), livingAttacker.getY(), livingAttacker.getZ(), SoundRegistry.INSTANT_RELOAD.get(), SoundSource.NEUTRAL, 1, 1);
-        if (GunItem.isReloading(gunstack)) {
-            ReloadState.remove(gunstack);
-            GunplayManager.cancelGunAnimation(livingAttacker, gunstack);
+        if (missing <= 0) {
+            return;
         }
-        if (livingAttacker instanceof Player player) {
-            player.getCooldowns().addCooldown(stack, COOLDOWN_TICKS);
-            player.sendOverlayMessage(Component.translatable("item.irons_artifice.cowboy_hat.ability.gain_ammo", missing).withStyle(ChatFormatting.LIGHT_PURPLE));
-            if (player instanceof ServerPlayer serverPlayer) {
-                GunCriteria.markInstaReload(serverPlayer);
-            }
+
+        int reloadAmount = Math.min(missing, 3);
+        MagazineContents updated = contents.with(contents.count() + reloadAmount);
+        MagazineContents.set(gunstack, updated);
+
+        if (livingAttacker instanceof Player player && stack.is(ItemRegistry.COWBOY_HAT)) {
+            player.getCooldowns().addCooldown(stack.getItem(), COOLDOWN_TICKS);
+            player.level().playSound(null, livingAttacker.blockPosition(), SoundRegistry.INSTANT_RELOAD.get(), SoundSource.PLAYERS, 1.0F, 1.0F);
         }
     }
 }
